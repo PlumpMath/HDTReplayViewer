@@ -53,6 +53,10 @@ module HDT
       entities_in_zone(Zone::PLAY)
     end
 
+    def heroes
+      entities_in_play.select(&:hero?)
+    end
+
   end
 
   class Entity
@@ -68,6 +72,10 @@ module HDT
 
     def inspect
       @data[:Tags].to_s
+    end
+
+    def hero?
+      false
     end
   end
 
@@ -117,7 +125,11 @@ module HDT
     end
 
     def inspect
-      "Hero: #{@hero_type}, Health: #{@health}, ID: #{id}"
+      "Hero: #{@hero_type}, Health: #{health}, ID: #{id}"
+    end
+
+    def hero?
+      true
     end
   end
 
@@ -157,7 +169,7 @@ module HDT
       case
       when entity[:Name] == "GameEntity"
         Game.new(entity)
-      when entity[:Tags][:HERO_ENTITY]
+      when entity[:Tags][:PLAYER_ID]
         Player.new(entity)
       when entity[:Tags][:SHOWN_HERO_POWER]
         Hero.new(entity)

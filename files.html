@@ -1,1 +1,45 @@
 <input type="file" name="files[]" id="files" />
+
+<script>
+  Array.prototype.filterOn = function(property) {
+    return this.filter(function(e) {return e[property];});
+  };
+  function Replay(replayJSON) {
+    this.timeline = replayJSON.map(function(state) {return new State(state);});
+    this.states = this.timeline;
+  }
+  function State(replayKeyPoint) {
+    this.data = replayKeyPoint;
+    this.entities = replayKeyPoint.Data;
+    this.turn = this.data.Turn;
+
+    this.derefEntities = function() {
+      // set controllers to objects
+      var state = this;
+      state.entities.forEach(function(entity) {
+        if (entity.Tags.CONTROLLER >= 0) {
+          entity.Tags.CONTROLLER = state.entities.find(function(e) {
+            return e.Tags.ENTITY_ID === entity.Tags.CONTROLLER;
+          });
+        }
+      });
+    }
+  }
+  function derefEntities(replay) {
+    console.log(replay.states);
+    replay.states.forEach(function(state) {state.derefEntities();});
+  }
+  var fileInput = document.getElementById('files');
+  var reader = new FileReader();
+  var replayFile;
+  reader.onload = function(e) {
+    replay = new Replay(JSON.parse(reader.result));
+    derefEntities(replay);
+    console.log("loaded the thing");
+  }
+  function fileInputChangeListener(event) {
+    var file = event.target.files[0];
+    reader.readAsText(file);
+  }
+  fileInput.addEventListener("change", fileInputChangeListener);
+</script>
