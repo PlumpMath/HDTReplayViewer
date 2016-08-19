@@ -1,6 +1,110 @@
+<style type="text/css">
+#slider {
+  border: 1px solid rgb(101, 101, 101);
+  height: 5px;
+  position: relative;
+  width: 400px;
+}
+#slider span {
+  left: 0%;
+  border: 1px solid;
+  position: absolute;
+  width: 12px;
+  height: 7px;
+}
+</style>
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.0/jquery-ui.js"></script>
+  <script>
+  var uhh = 50;
+  </script>
+
 <input type="file" name="files[]" id="files" />
 
+<div id="game">
+  Turn: <div id="turn-counter"></div>
+  <div id="player1">
+    Deck:<div id="deck1"></div>
+    Hand:<div id="hand1"></div>
+    Hero:<div id="hero1"></div>
+    Hero Power:<div id="heropower1"></div>
+    Board:<div id="board1"></div>
+  </div>
+  <div id="player2">
+    Deck:<div id="deck2"></div>
+    Hand:<div id="hand2"></div>
+    Hero:<div id="hero2"></div>
+    Hero Power:<div id="heropower2"></div>
+    Board:<div id="board2"></div>
+  </div>
+  <div id="slider"></div>
+  <p>
+  <label for="amount">Current Board State:</label>
+  <input type="text" id="amount" readonly style="border:0; color:#f6931f; font-weight:bold;">
+</p>
+</div>
 <script>
+  function randn(max) {
+    return Math.round(Math.random()*max) + 1;
+  }
+  function handToHTML(entities) {
+    return "<ul>" + entities.map(function (e) {
+      let name = e.CardId;
+      if(!name) {name = "unknown";}
+      return "<li>" + name + "</li>";
+    }).join("") + "</ul>";
+  }
+  function boardToHTML(entities) {
+    return "<ul>" + entities.map(function (e) {
+      var health = (e.Tags.DAMAGE ? (e.Tags.HEALTH-e.Tags.DAMAGE) : e.Tags.HEALTH);
+      return "<li>" + e.CardId + ", health: " + health + "</li>";
+    }).join("") + "</ul>";
+  }
+  function minionInPlay(e, n) {
+    let inPlay = (e.Tags.ZONE === 1);
+    let ownedByCurrentPlayer = (e.Tags.CONTROLLER === n);
+    let notAHero = !e.Tags.SHOWN_HERO_POWER;
+    let notAHeroPower = !e.IsHeroPower;
+    let notAPlayer = !e.Tags.PLAYER_ID;
+    return inPlay && ownedByCurrentPlayer && notAHero && notAHeroPower && notAPlayer;
+  }
+  function drawPlayer(n, state) {
+    // draw Hero
+    $("#hero"+n).html(state.players[n-1].data.Name + (state.entities[61+2*n].Tags.HEALTH - (state.entities[61+2*n].Tags.DAMAGE ? state.entities[61+2*n].Tags.DAMAGE : 0)));
+    // draw Hero Power
+    $("#heropower"+n).html(state.entities[62+2*n].CardId + (state.entities[62+2*n].Tags.EXHAUSTED ? "used" : ""));
+    //draw hand
+    var hand = state.entities.filter(function(e) {return e.Tags.ZONE === 3 && e.Tags.CONTROLLER === n;});
+    $("#hand"+n).html(handToHTML(hand));
+    // draw board
+    var board = state.entities.filter(function(e) {return minionInPlay(e, n);});
+    $("#board"+n).html(boardToHTML(board));
+    //draw Turn
+    $("#turn-counter").html(state.turn);
+  }
+  function drawPlayers(state) {
+    drawPlayer(1, state);
+    drawPlayer(2, state);
+  }
+  function drawBoardState(n) {
+    var state = replay.states[n];
+    drawPlayers(state);
+  }
+  function setSliderSize(max) {
+    $( function() {
+      $( "#slider" ).slider({
+        value:0,
+        min: 0,
+        max: max-1,
+        step: 1,
+        slide: function( event, ui ) {
+          $( "#amount" ).val( ui.value );
+          drawBoardState(ui.value);
+        },
+      });
+      $( "#amount" ).val( $( "#slider" ).slider( "value" ) );
+    });
+  }
   Array.prototype.filterOn = function(property) {
     return this.filter(function(e) {return e[property];});
   };
@@ -8,17 +112,36 @@
     this.timeline = replayJSON.map(function(state) {return new State(state);});
     this.states = this.timeline;
   }
+  function Player(playerEntity, state) {
+    this.data = playerEntity;
+    this.hand = state.entities;
+    // minions in play
+    // hand
+    // deck
+    // hero
+    // hero power
+    // secrets
+  }
   function State(replayKeyPoint) {
+    var state = this;
     this.data = replayKeyPoint;
     this.entities = replayKeyPoint.Data;
-    this.turn = this.data.Turn;
+    this.turn = replayKeyPoint.Turn;
+    this.players_swapped = false; // for rotate board
+    this.players = replayKeyPoint.Data.filter(function (entity) {
+      return entity.Tags.PLAYER_ID;
+    }).map(function(player) {
+      return new Player(player, state);
+    });
+
+    //this.
 
     this.derefEntities = function() {
       // set controllers to objects
       var state = this;
       state.entities.forEach(function(entity) {
         if (entity.Tags.CONTROLLER >= 0) {
-          entity.Tags.CONTROLLER = state.entities.find(function(e) {
+          entity.controller = state.entities.find(function(e) {
             return e.Tags.ENTITY_ID === entity.Tags.CONTROLLER;
           });
         }
@@ -35,6 +158,8 @@
   reader.onload = function(e) {
     replay = new Replay(JSON.parse(reader.result));
     derefEntities(replay);
+    setSliderSize(replay.states.length);
+    drawBoardState(0);
     console.log("loaded the thing");
   }
   function fileInputChangeListener(event) {
